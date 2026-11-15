@@ -30,6 +30,22 @@ def list_entries(
     return PageResult(items=items, total=total, page=page, size=size)
 
 
+@router.get("/error-codes/{api_code}")
+def error_codes(api_code: str) -> dict[str, Any]:
+    """文档自动生成按接口编号读取错误码结构；接口未登记或契约缺失时给出可读的错误说明。"""
+    result = service.error_codes(api_code)
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"接口配置 {api_code} 不存在或未登记响应模板")
+    return result
+
+
+@router.get("/export")
+def export_entries() -> dict[str, Any]:
+    """导出文档自动生成清单：返回当前过滤条件下的全量数据。"""
+    items, total = service.list_entries(page=1, size=10000)
+    return {"module": "docgen", "total": total, "items": items}
+
+
 @router.get("/{entry_id}", response_model=dict)
 def get_entry(entry_id: int) -> dict:
     """读取单条文档模板明细；不存在时给出可读的错误说明。"""
@@ -41,7 +57,7 @@ def get_entry(entry_id: int) -> dict:
 
 @router.post("", response_model=ActionResult)
 def create_entry(payload: EntryPayload) -> ActionResult:
-    """登记一条文档模板，缺字段时说明原因而不是静默丢弃。"""
+    """登记一条文档模板，缺字段时说明原因而不是静默丢弃；示例数据与错误码表可从接口契约回填。"""
     entry, missing = service.create_entry(payload.values)
     if missing:
         return ActionResult(ok=False, message=f"缺少必填字段：{'、'.join(missing)}")
@@ -56,10 +72,3 @@ def run_action(entry_id: int, payload: EntryPayload) -> ActionResult:
     if entry is None:
         return ActionResult(ok=False, message=message)
     return ActionResult(ok=True, message=message, entry=entry)
-
-
-@router.get("/export")
-def export_entries() -> dict[str, Any]:
-    """导出文档自动生成清单：返回当前过滤条件下的全量数据。"""
-    items, total = service.list_entries(page=1, size=10000)
-    return {"module": "docgen", "total": total, "items": items}
